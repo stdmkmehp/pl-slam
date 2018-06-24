@@ -68,8 +68,8 @@ SlamConfig::SlamConfig()
     max_iters_lba         = 15;
 
     // Loop closure
-    vocabulary_p          = "/home/ruben/code/pl-slam-dev/vocabulary/mapir_orb.yml";
-    vocabulary_l          = "/home/ruben/code/pl-slam-dev/vocabulary/mapir_lsd.yml";
+    vocabulary_p          = "/home/lab404/pl-slam/vocabulary/mapir_orb.yml";
+    vocabulary_l          = "/home/lab404/pl-slam/vocabulary/mapir_lsd.yml";
 
     lc_mat                = 0.5;
     lc_res                = 1.5;
