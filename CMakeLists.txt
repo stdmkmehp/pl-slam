@@ -88,7 +88,7 @@ list(APPEND SOURCEFILES
 endif()
 
 # List all files (headers) contained by StVO-PL library
-file(GLOB_RECURSE all_include_files RELATIVE "${CMAKE_SOURCE_DIR}" *.h *.hpp)
+file(GLOB_RECURSE all_include_files RELATIVE "${PROJECT_SOURCE_DIR}" *.h *.hpp)
 
 # Visualize the files of this directory in IDE creating an custom empty target
 add_custom_target( plslam_includes DEPENDS ${all_include_files} SOURCES ${all_include_files} )
@@ -106,6 +106,8 @@ endif()
 if(HAS_MRPT)
 add_executable       ( plslam_dataset app/plslam_dataset.cpp )
 target_link_libraries( plslam_dataset plslam )
+add_executable       ( plslam_online app/plslam_online.cpp )
+target_link_libraries( plslam_online plslam ${catkin_LIBRARIES} )
 endif(HAS_MRPT)
 
 
