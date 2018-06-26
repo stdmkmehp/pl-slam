@@ -44,24 +44,13 @@
 
 #include <cv_bridge/cv_bridge.h>
 
+#include "rosImg2cvMat.h"
+
 using namespace StVO;
 using namespace PLSLAM;
 
-void showHelp();
-bool getInputArgs(int argc, char **argv, std::string &dataset_name, int &frame_offset, int &frame_number, int &frame_step, std::string &config_file);
-
-cv::Mat matFromImage(const sensor_msgs::CompressedImageConstPtr& source);
-
-// rostopic订阅 回调函数
-void leftImCallback(const sensor_msgs::ImageConstPtr& msg);
-void rightImCallback(const sensor_msgs::ImageConstPtr& msg);
-void leftCompressedImCallback(const sensor_msgs::CompressedImageConstPtr& msg);
-
-
 cv::Mat leftIm(cvSize(1280, 720), CV_8UC3);
 cv::Mat rightIm(cvSize(1280, 720), CV_8UC3);
-cv::Mat leftCompressedIm(cvSize(1280, 720), CV_8UC3);
-//cv::Mat leftDepth16uc1(cvSize(1280, 720), CV_16UC1);
 
 int main(int argc, char **argv)
 {
@@ -71,9 +60,10 @@ int main(int argc, char **argv)
 	ros::NodeHandle nh;
 
 	//ros::Subscriber sub = nh.subscribe("chatter", 1000, chatterCallback);
-	ros::Subscriber sub_leftIm = nh.subscribe("/zed/left/image_rect_color", 1000, leftImCallback);
-	ros::Subscriber sub_rightIm = nh.subscribe("/zed/right/image_rect_color", 1000, rightImCallback);
-	ros::Subscriber sub_leftCompressedIm = nh.subscribe("zed/right/image_raw_color/compressed", 1000, leftCompressedImCallback);
+	// ros::Subscriber sub_leftIm = nh.subscribe("/zed/left/image_rect_color", 1000, leftImCallback);
+	// ros::Subscriber sub_rightIm = nh.subscribe("/zed/right/image_rect_color", 1000, rightImCallback);
+	ros::Subscriber sub_leftCompressedIm = nh.subscribe("/zed/left/image_raw_color/compressed", 1000, leftCompressedImCallback);
+	ros::Subscriber sub_rightCompressedIm = nh.subscribe("/zed/right/image_raw_color/compressed", 1000, rightCompressedImCallback);
 
     // read inputs
 	string config_file, camera_params, scene_config;
@@ -83,9 +73,6 @@ int main(int argc, char **argv)
 	cout << config_file << endl;
 	cout << camera_params << endl;
 	cout << scene_config << endl;
-
-	ros::spin();
-
 
     if (!config_file.empty()) SlamConfig::loadFromFile(config_file);
 
@@ -122,10 +109,11 @@ int main(int argc, char **argv)
     // initialize and run PL-StVO
     int frame_counter = 0;
     StereoFrameHandler* StVO = new StereoFrameHandler(cam_pin);
-    Mat& img_l = leftIm;
-    Mat& img_r = rightIm;
+    cv::Mat& img_l = leftIm;
+    cv::Mat& img_r = rightIm;
     // while (dataset.nextFrame(img_l, img_r))
-    while (1)
+	ros::Rate loop_rate(10);	// 10Hz
+    while (ros::ok())
     {
         if( frame_counter == 0 ) // initialize
         {
@@ -177,6 +165,9 @@ int main(int argc, char **argv)
         }
 
         frame_counter++;
+
+        ros::spinOnce();
+        loop_rate.sleep();
     }
 
     // finish SLAM
@@ -193,89 +184,4 @@ int main(int argc, char **argv)
     while( scene.isOpen() );
 
     return 0;
-}
-
-void showHelp() {
-    cout << endl << "Usage: ./imgPLSLAM <dataset_name> [options]" << endl
-         << "Options:" << endl
-         << "\t-o Offset (number of frames to skip in the dataset directory" << endl
-         << "\t-n Number of frames to process the sequence" << endl
-         << "\t-s Parameter to skip s-1 frames (default 1)" << endl
-         << "\t-c Config file" << endl
-         << endl;
-}
-
-bool getInputArgs(int argc, char **argv, std::string &dataset_name, int &frame_offset, int &frame_number, int &frame_step, std::string &config_file) {
-
-    if( argc < 2 || argc > 10 || (argc % 2) == 1 )
-        return false;
-
-    dataset_name = argv[1];
-    int nargs = argc/2 - 1;
-    for( int i = 0; i < nargs; i++ )
-    {
-        int j = 2*i + 2;
-        if( string(argv[j]) == "-o" )
-            frame_offset = stoi(argv[j+1]);
-        else if( string(argv[j]) == "-n" )
-            frame_number = stoi(argv[j+1]);
-        else if( string(argv[j]) == "-s" )
-            frame_step = stoi(argv[j+1]);
-        else if (string(argv[j]) == "-c")
-            config_file = string(argv[j+1]);
-        else
-            return false;
-    }
-
-    return true;
-}
-
-cv::Mat matFromImage(const sensor_msgs::CompressedImageConstPtr& source)
-{
-	cv::Mat jpegData(1,source->data.size(),CV_8UC1);
-	jpegData.data 	= const_cast<uchar*>(&source->data[0]);
-	cv::InputArray data(jpegData);
-	cv::Mat bgrMat 	= cv::imdecode(data,cv::IMREAD_COLOR);
-	return bgrMat;
-}
-
-void leftImCallback(const sensor_msgs::ImageConstPtr& msg)
-{
-  try
-  {
-  	leftIm = cv_bridge::toCvCopy(msg, "8UC3")->image;
-  	// ROS_INFO("leftIm");
-  	cv::imwrite("/home/lab404/Documents/leftIm.jpg",leftIm);
-  }
-  catch (cv_bridge::Exception& e)
-  {
-  	ROS_ERROR("Could not convert from '%s' to '8UC3'.", msg->encoding.c_str());
-  }
-}
-void rightImCallback(const sensor_msgs::ImageConstPtr& msg)
-{
-  try
-  {
-  	rightIm = cv_bridge::toCvCopy(msg, "8UC3")->image;
-  	// ROS_INFO("rightIm");
-  	cv::imwrite("/home/lab404/Documents/rightIm.jpg",rightIm);
-  }
-  catch (cv_bridge::Exception& e)
-  {
-  	ROS_ERROR("Could not convert from '%s' to '8UC3'.", msg->encoding.c_str());
-  }
-}
-
-void leftCompressedImCallback(const sensor_msgs::CompressedImageConstPtr& msg)
-{
-  try
-  {
-  	leftCompressedIm = matFromImage(msg);
-  	// ROS_INFO("leftCompressedImCallback");
-  	cv::imwrite("/home/lab404/Documents/leftCompressedIm.jpg",leftCompressedIm);
-  }
-  catch (cv_bridge::Exception& e)
-  {
-  	ROS_ERROR("Could not convert from leftCompressedIm to cvMat.");
-  }
 }
