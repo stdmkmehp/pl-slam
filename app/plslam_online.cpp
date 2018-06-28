@@ -46,11 +46,13 @@
 
 #include "rosImg2cvMat.h"
 
+#include "mapSaving.h"
+
 using namespace StVO;
 using namespace PLSLAM;
 
-cv::Mat leftIm(cvSize(1280, 720), CV_8UC3);
-cv::Mat rightIm(cvSize(1280, 720), CV_8UC3);
+cv::Mat leftIm;//(cvSize(1280, 720), CV_8UC3);
+cv::Mat rightIm;//(cvSize(1280, 720), CV_8UC3);
 
 int main(int argc, char **argv)
 {
@@ -62,8 +64,8 @@ int main(int argc, char **argv)
 	//ros::Subscriber sub = nh.subscribe("chatter", 1000, chatterCallback);
 	// ros::Subscriber sub_leftIm = nh.subscribe("/zed/left/image_rect_color", 1000, leftImCallback);
 	// ros::Subscriber sub_rightIm = nh.subscribe("/zed/right/image_rect_color", 1000, rightImCallback);
-	ros::Subscriber sub_leftCompressedIm = nh.subscribe("/zed/left/image_raw_color/compressed", 1000, leftCompressedImCallback);
-	ros::Subscriber sub_rightCompressedIm = nh.subscribe("/zed/right/image_raw_color/compressed", 1000, rightCompressedImCallback);
+	ros::Subscriber sub_leftCompressedIm = nh.subscribe("/zed/left/image_rect_color/compressed", 1000, leftCompressedImCallback);
+	ros::Subscriber sub_rightCompressedIm = nh.subscribe("/zed/right/image_rect_color/compressed", 1000, rightCompressedImCallback);
 
     // read inputs
 	string config_file, camera_params, scene_config;
@@ -111,9 +113,16 @@ int main(int argc, char **argv)
     StereoFrameHandler* StVO = new StereoFrameHandler(cam_pin);
     cv::Mat& img_l = leftIm;
     cv::Mat& img_r = rightIm;
-    // while (dataset.nextFrame(img_l, img_r))
 	ros::Rate loop_rate(10);	// 10Hz
-    while (ros::ok())
+	cout<<"Waiting for stereo images..."<<endl;
+	while(img_l.empty() || img_r.empty())
+	{
+        ros::spinOnce();
+		loop_rate.sleep();
+	}
+
+	vector<pair<int,Matrix4d>> vStvoTfw;
+    while(ros::ok() && !img_l.empty() && !img_r.empty())
     {
         if( frame_counter == 0 ) // initialize
         {
@@ -121,7 +130,7 @@ int main(int argc, char **argv)
             PLSLAM::KeyFrame* kf = new PLSLAM::KeyFrame( StVO->prev_frame, 0 );
             map->initialize( kf );
             // update scene
-            scene.initViewports( img_l.cols, img_r.rows );
+            scene.initViewports( cam_pin->getWidth(), cam_pin->getHeight() );
             scene.setImage(StVO->prev_frame->plotStereoFrame());
             scene.updateSceneSafe( map );
         }
@@ -164,7 +173,11 @@ int main(int argc, char **argv)
             StVO->updateFrame();
         }
 
+        // StVO->updateFrame(); --> prev_frame = curr_frame;
+        vStvoTfw.push_back(make_pair(StVO->prev_frame->frame_idx,StVO->prev_frame->Tfw));
         frame_counter++;
+        img_l.release();
+        img_r.release();
 
         ros::spinOnce();
         loop_rate.sleep();
@@ -174,12 +187,17 @@ int main(int argc, char **argv)
     map->finishSLAM();
     scene.updateScene( map );
 
+    savemap(map,"/home/lab404/Documents/mapkf.txt");
+
     // perform GBA
     cout << endl << "Performing Global Bundle Adjustment..." ;
     map->globalBundleAdjustment();
     cout << " ... done." << endl;
     scene.updateSceneGraphs( map );
 
+    savemap(map,"/home/lab404/Documents/mapkf_globalBA.txt");
+    saveStvoTfw(vStvoTfw,"/home/lab404/Documents/StvoTfw.txt");
+    cout<<"Save done."<<endl;
     // wait until the scene is closed
     while( scene.isOpen() );
 

@@ -71,20 +71,22 @@ list(APPEND LINK_LIBS
 
 # Set source files 
 if(HAS_MRPT)
-list(APPEND SOURCEFILES
-  src/mapHandler.cpp
-  src/mapFeatures.cpp
-  src/keyFrame.cpp
-  src/slamConfig.cpp
-  src/slamScene.cpp
-)
+#list(APPEND SOURCEFILES
+#  src/mapHandler.cpp
+#  src/mapFeatures.cpp
+#  src/keyFrame.cpp
+#  src/slamConfig.cpp
+#  src/slamScene.cpp
+#)
+aux_source_directory(./src/ SOURCEFILES)
 else()
-list(APPEND SOURCEFILES
-  src/mapHandler.cpp
-  src/mapFeatures.cpp
-  src/keyFrame.cpp
-  src/slamConfig.cpp
-)
+#list(APPEND SOURCEFILES
+#  src/mapHandler.cpp
+#  src/mapFeatures.cpp
+#  src/keyFrame.cpp
+#  src/slamConfig.cpp
+#)
+aux_source_directory(./src/ SOURCEFILES)
 endif()
 
 # List all files (headers) contained by StVO-PL library
