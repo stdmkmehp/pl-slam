@@ -67,6 +67,7 @@ list(APPEND LINK_LIBS
   ${PROJECT_SOURCE_DIR}/../stvo-pl/lib/libstvo.so
   ${PROJECT_SOURCE_DIR}/3rdparty/DBoW2/lib/libDBoW2.so
   ${PROJECT_SOURCE_DIR}/3rdparty/line_descriptor/lib/liblinedesc.so
+  /opt/ros/kinetic/lib/x86_64-linux-gnu/libopencv_imgcodecs3.so
 )
 
 # Set source files 
