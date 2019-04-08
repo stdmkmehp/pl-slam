@@ -37,6 +37,36 @@
 using namespace StVO;
 using namespace PLSLAM;
 
+void savemap(PLSLAM::MapHandler* map, string path)
+{   
+    cout<<"Saving map in "<<path<<endl;
+    ofstream out(path);
+    for(auto ele:map->map_keyframes)    //KeyFrame*
+    {
+        out<<"f_idx "<<ele->f_idx<<" kf_idx "<<ele->kf_idx<<" ";
+        out<<ele->T_kf_w(0,0)<<" "<<ele->T_kf_w(0,1)<<" "<<ele->T_kf_w(0,2)<<" "<<ele->T_kf_w(0,3)<<" ";
+        out<<ele->T_kf_w(1,0)<<" "<<ele->T_kf_w(1,1)<<" "<<ele->T_kf_w(1,2)<<" "<<ele->T_kf_w(1,3)<<" ";
+        out<<ele->T_kf_w(2,0)<<" "<<ele->T_kf_w(2,1)<<" "<<ele->T_kf_w(2,2)<<" "<<ele->T_kf_w(2,3)<<" ";
+        out<<ele->T_kf_w(3,0)<<" "<<ele->T_kf_w(3,1)<<" "<<ele->T_kf_w(3,2)<<" "<<ele->T_kf_w(3,3)<<endl;
+    }
+    out.close();
+}
+
+void saveStvoTfw(const vector<pair<int,Matrix4d>>& vStvoTfw, string path)
+{
+    cout<<"Saving map in "<<path<<endl;
+    ofstream out(path);
+    for(auto ele:vStvoTfw)  //Matrix4d
+    {
+        out<<"frame_idx "<<ele.first<<" ";
+        out<<ele.second(0,0)<<" "<<ele.second(0,1)<<" "<<ele.second(0,2)<<" "<<ele.second(0,3)<<" ";
+        out<<ele.second(1,0)<<" "<<ele.second(1,1)<<" "<<ele.second(1,2)<<" "<<ele.second(1,3)<<" ";
+        out<<ele.second(2,0)<<" "<<ele.second(2,1)<<" "<<ele.second(2,2)<<" "<<ele.second(2,3)<<" ";
+        out<<ele.second(3,0)<<" "<<ele.second(3,1)<<" "<<ele.second(3,2)<<" "<<ele.second(3,3)<<endl;
+    }
+    out.close();
+}
+
 void showHelp();
 bool getInputArgs(int argc, char **argv, std::string &dataset_name, int &frame_offset, int &frame_number, int &frame_step, std::string &config_file);
 
@@ -109,6 +139,8 @@ int main(int argc, char **argv)
     int frame_counter = 0;
     StereoFrameHandler* StVO = new StereoFrameHandler(cam_pin);
     Mat img_l, img_r;
+    vector<float> vTimesTrack;
+    vTimesTrack.reserve(frame_number);
     while (dataset.nextFrame(img_l, img_r))
     {
         if( frame_counter == 0 ) // initialize
@@ -127,18 +159,14 @@ int main(int argc, char **argv)
             timer.start();
             StVO->insertStereoPair( img_l, img_r, frame_counter );
             StVO->optimizePose();
-            double t1 = timer.stop(); //ms
-            cout << "------------------------------------------   Frame #" << frame_counter
-                 << "   ----------------------------------------" << endl;
-            cout << endl << "VO Runtime: " << t1 << endl;
 
             // check if a new keyframe is needed
             if( StVO->needNewKF() )
             {
-                cout <<         "#KeyFrame:     " << map->max_kf_idx + 1;
-                cout << endl << "#Points:       " << map->map_points.size();
-                cout << endl << "#Segments:     " << map->map_lines.size();
-                cout << endl << endl;
+                // cout <<         "#KeyFrame:     " << map->max_kf_idx + 1;
+                // cout << endl << "#Points:       " << map->map_points.size();
+                // cout << endl << "#Segments:     " << map->map_lines.size();
+                // cout << endl << endl;
 
                 // grab StF and update KF in StVO (the StVO thread can continue after this point)
                 PLSLAM::KeyFrame* curr_kf = new PLSLAM::KeyFrame( StVO->curr_frame );
@@ -158,21 +186,42 @@ int main(int argc, char **argv)
 
             // update StVO
             StVO->updateFrame();
+            double t1 = timer.stop(); //ms
+			vTimesTrack.push_back(t1);
+            // cout << "------------------------------------------   Frame #" << frame_counter
+            //      << "   ----------------------------------------" << endl;
+            // cout << endl << "VO Runtime: " << t1 << endl;
         }
 
         frame_counter++;
     }
 
+
+    sort(vTimesTrack.begin(),vTimesTrack.end());
+    int nTimes = vTimesTrack.size();
+    float totaltime = 0;
+    for(int ni=0; ni<nTimes; ni++)
+    {
+        totaltime+=vTimesTrack[ni];
+    }
+    cout << endl << "-------" << endl << endl;
+    cout << "median tracking time: " << vTimesTrack[nTimes/2] << endl;
+    cout << "mean tracking time: " << totaltime/nTimes << endl << endl;
+
     // finish SLAM
     map->finishSLAM();
     scene.updateScene( map );
 
+    savemap(map,"/home/lab404/Documents/mapkf.txt");
     // perform GBA
     cout << endl << "Performing Global Bundle Adjustment..." ;
     map->globalBundleAdjustment();
     cout << " ... done." << endl;
     scene.updateSceneGraphs( map );
 
+    savemap(map,"/home/lab404/Documents/mapkf_globalBA.txt");
+    //saveStvoTfw(vStvoTfw,"/home/lab404/Documents/StvoTfw.txt");
+    cout<<"Save done."<<endl;
     // wait until the scene is closed
     while( scene.isOpen() );
 
